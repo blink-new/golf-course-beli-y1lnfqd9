@@ -185,11 +185,11 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       // Save user profile data
       await blink.db.user_profiles.create({
         id: `profile_${user.id}`,
-        user_id: user.id,
-        display_name: userData.name,
+        userId: user.id,
+        displayName: userData.name,
         location: userData.location,
-        onboarding_completed: true,
-        created_at: new Date().toISOString()
+        onboardingCompleted: "1", // SQLite boolean as string
+        createdAt: new Date().toISOString()
       })
 
       // Save initial course interests
