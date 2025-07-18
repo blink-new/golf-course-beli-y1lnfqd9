@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, Star, MapPin, Clock, TrendingUp, Users, Heart } from 'lucide-react'
 import { Card, CardContent } from './ui/card'
 import { Button } from './ui/button'
@@ -39,21 +39,21 @@ export default function MyList() {
     if (user) {
       loadMyLists()
     }
-  }, [user])
+  }, [user, loadMyLists])
 
-  const loadMyLists = async () => {
+  const loadMyLists = useCallback(async () => {
     try {
       setLoading(true)
 
       // Load all golf courses
-      const allCourses = await blink.db.golfCourses.list({
-        orderBy: { rating: 'desc' }
+      const allCourses = await blink.db.courses.list({
+        orderBy: { community_rating: 'desc' }
       })
 
       // Load user's course rankings
-      const userRankings = await blink.db.userCourseRankings.list({
-        where: { userId: user.id },
-        orderBy: { createdAt: 'desc' }
+      const userRankings = await blink.db.user_course_rankings.list({
+        where: { user_id: user.id },
+        orderBy: { created_at: 'desc' }
       })
 
       // Process courses into different categories
@@ -65,7 +65,7 @@ export default function MyList() {
       // Map user rankings to courses
       const userRankingMap = new Map()
       userRankings.forEach(ranking => {
-        userRankingMap.set(ranking.courseId, ranking)
+        userRankingMap.set(ranking.course_id, ranking)
       })
 
       allCourses.forEach(course => {
@@ -75,19 +75,19 @@ export default function MyList() {
           id: course.id,
           name: course.name,
           location: course.location,
-          image: course.imageUrl || course.image_url,
-          rating: course.rating,
-          addedAt: userRanking?.createdAt || course.createdAt,
-          playedAt: userRanking?.status === 'ranked' ? userRanking.updatedAt : undefined,
-          myRating: userRanking?.ranking,
-          friendsRating: course.rating,
+          image: course.image_url,
+          rating: course.community_rating,
+          addedAt: userRanking?.created_at || course.created_at,
+          playedAt: userRanking?.rating ? userRanking.created_at : undefined,
+          myRating: userRanking?.rating,
+          friendsRating: course.community_rating,
           trending: Math.random() > 0.7 // Simple trending logic
         }
 
         if (userRanking) {
-          if (userRanking.status === 'ranked') {
+          if (userRanking.rating) {
             rankedCoursesData.push(courseData)
-          } else if (userRanking.status === 'want_to_try') {
+          } else if (userRanking.want_to_try) {
             wantToTryData.push(courseData)
           }
         } else {
@@ -118,17 +118,16 @@ export default function MyList() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user])
 
   const addCourseToWantToTry = async (courseId: string) => {
     try {
-      await blink.db.userCourseRankings.create({
+      await blink.db.user_course_rankings.create({
         id: `ranking_${Date.now()}`,
-        userId: user.id,
-        courseId: courseId,
-        status: 'want_to_try',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        user_id: user.id,
+        course_id: courseId,
+        want_to_try: true,
+        created_at: new Date().toISOString()
       })
       
       // Reload lists to reflect changes

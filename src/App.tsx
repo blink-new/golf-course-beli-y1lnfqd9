@@ -8,6 +8,7 @@ import HomeFeed from './components/HomeFeed'
 import MyList from './components/MyList'
 import Compare from './components/Compare'
 import Profile from './components/Profile'
+import Onboarding from './components/Onboarding'
 
 type Tab = 'home' | 'list' | 'compare' | 'profile'
 
@@ -15,14 +16,41 @@ function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('home')
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
     const unsubscribe = blink.auth.onAuthStateChanged((state) => {
       setUser(state.user)
       setLoading(state.isLoading)
+      
+      // Check if user needs onboarding
+      if (state.user && !state.isLoading) {
+        checkOnboardingStatus(state.user)
+      }
     })
     return unsubscribe
   }, [])
+
+  const checkOnboardingStatus = async (user: any) => {
+    try {
+      const profile = await blink.db.user_profiles.list({
+        where: { user_id: user.id },
+        limit: 1
+      })
+      
+      if (profile.length === 0 || !profile[0].onboarding_completed) {
+        setShowOnboarding(true)
+      }
+    } catch (error) {
+      console.error('Error checking onboarding status:', error)
+      // If error, assume onboarding needed
+      setShowOnboarding(true)
+    }
+  }
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false)
+  }
 
   if (loading) {
     return (
@@ -52,6 +80,11 @@ function App() {
         </div>
       </div>
     )
+  }
+
+  // Show onboarding if user needs it
+  if (showOnboarding) {
+    return <Onboarding onComplete={handleOnboardingComplete} />
   }
 
   const renderContent = () => {
