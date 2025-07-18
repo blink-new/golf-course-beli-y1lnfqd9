@@ -4,6 +4,7 @@ import { Card, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Avatar, AvatarFallback } from './ui/avatar'
 import { Badge } from './ui/badge'
+import { blink } from '../blink/client'
 
 interface FeedItem {
   id: string
@@ -25,82 +26,81 @@ interface FeedItem {
 }
 
 export default function HomeFeed() {
+  const [user, setUser] = useState<any>(null)
   const [feedItems, setFeedItems] = useState<FeedItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadFeed()
+    const unsubscribe = blink.auth.onAuthStateChanged((state) => {
+      setUser(state.user)
+      setLoading(state.isLoading)
+    })
+    return unsubscribe
   }, [])
 
-  const loadFeed = async () => {
-    // Mock feed data
-    const mockFeed: FeedItem[] = [
-      {
-        id: '1',
-        type: 'ranking',
-        user: { name: 'Alex Chen' },
-        course: {
-          name: 'Pebble Beach Golf Links',
-          location: 'Pebble Beach, CA',
-          image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400&h=300&fit=crop',
-          rating: 10
-        },
-        action: 'ranked this course #1',
-        timestamp: '2 hours ago',
-        likes: 12,
-        comments: 3
-      },
-      {
-        id: '2',
-        type: 'comparison',
-        user: { name: 'Sarah Johnson' },
-        course: {
-          name: 'Augusta National Golf Club',
-          location: 'Augusta, GA',
-          image: 'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=400&h=300&fit=crop',
-          rating: 9
-        },
-        action: 'compared 5 courses and ranked this #2',
-        timestamp: '4 hours ago',
-        likes: 8,
-        comments: 1
-      },
-      {
-        id: '3',
-        type: 'recommendation',
-        user: { name: 'Mike Rodriguez' },
-        course: {
-          name: 'Torrey Pines Golf Course',
-          location: 'La Jolla, CA',
-          image: 'https://images.unsplash.com/photo-1593111774240-d529f12cf4bb?w=400&h=300&fit=crop',
-          rating: 8
-        },
-        action: 'added to want-to-try list',
-        timestamp: '1 day ago',
-        likes: 15,
-        comments: 7
-      },
-      {
-        id: '4',
-        type: 'ranking',
-        user: { name: 'Emma Wilson' },
-        course: {
-          name: 'St. Andrews Old Course',
-          location: 'St. Andrews, Scotland',
-          image: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop',
-          rating: 9
-        },
-        action: 'ranked this course #3',
-        timestamp: '2 days ago',
-        likes: 22,
-        comments: 5
-      }
-    ]
+  useEffect(() => {
+    if (user) {
+      loadFeed()
+    }
+  }, [user])
 
-    setTimeout(() => {
+  const loadFeed = async () => {
+    try {
+      // Load courses from database
+      const courses = await blink.db.courses.list({
+        limit: 10,
+        orderBy: { communityRating: 'desc' }
+      })
+
+      // Create mock feed items using real course data
+      const mockFeed: FeedItem[] = courses.slice(0, 4).map((course, index) => {
+        const users = ['Alex Chen', 'Sarah Johnson', 'Mike Rodriguez', 'Emma Wilson']
+        const actions = ['ranked this course #1', 'compared 5 courses and ranked this #2', 'added to want-to-try list', 'ranked this course #3']
+        const timestamps = ['2 hours ago', '4 hours ago', '1 day ago', '2 days ago']
+        const types: ('ranking' | 'comparison' | 'recommendation')[] = ['ranking', 'comparison', 'recommendation', 'ranking']
+        
+        return {
+          id: course.id,
+          type: types[index],
+          user: { name: users[index] },
+          course: {
+            name: course.name,
+            location: course.location,
+            image: course.imageUrl || 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400&h=300&fit=crop',
+            rating: Math.round(Number(course.communityRating))
+          },
+          action: actions[index],
+          timestamp: timestamps[index],
+          likes: Math.floor(Math.random() * 20) + 5,
+          comments: Math.floor(Math.random() * 8) + 1
+        }
+      })
+
       setFeedItems(mockFeed)
+    } catch (error) {
+      console.error('Error loading feed:', error)
+      // Fallback to mock data if database fails
+      const fallbackFeed: FeedItem[] = [
+        {
+          id: '1',
+          type: 'ranking',
+          user: { name: 'Alex Chen' },
+          course: {
+            name: 'Pebble Beach Golf Links',
+            location: 'Pebble Beach, CA',
+            image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400&h=300&fit=crop',
+            rating: 10
+          },
+          action: 'ranked this course #1',
+          timestamp: '2 hours ago',
+          likes: 12,
+          comments: 3
+        }
+      ]
+      setFeedItems(fallbackFeed)
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   const handleLike = (itemId: string) => {
@@ -132,6 +132,27 @@ export default function HomeFeed() {
             </CardContent>
           </Card>
         ))}
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-6 max-w-sm mx-auto p-4">
+          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+            <Users className="w-10 h-10 text-primary" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Welcome to Beli</h2>
+            <p className="text-muted-foreground">
+              Sign in to discover and rank your favorite golf courses with friends
+            </p>
+          </div>
+          <Button onClick={() => blink.auth.login()} className="w-full">
+            Sign In to Continue
+          </Button>
+        </div>
       </div>
     )
   }

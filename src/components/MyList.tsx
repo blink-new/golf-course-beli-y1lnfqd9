@@ -4,6 +4,7 @@ import { Card, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import { Badge } from './ui/badge'
+import { blink } from '../blink/client'
 
 interface Course {
   id: string
@@ -19,6 +20,7 @@ interface Course {
 }
 
 export default function MyList() {
+  const [user, setUser] = useState<any>(null)
   const [rankedCourses, setRankedCourses] = useState<Course[]>([])
   const [wantToTry, setWantToTry] = useState<Course[]>([])
   const [recommendations, setRecommendations] = useState<Course[]>([])
@@ -26,116 +28,114 @@ export default function MyList() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadMyLists()
+    const unsubscribe = blink.auth.onAuthStateChanged((state) => {
+      setUser(state.user)
+      setLoading(state.isLoading)
+    })
+    return unsubscribe
   }, [])
 
+  useEffect(() => {
+    if (user) {
+      loadMyLists()
+    }
+  }, [user])
+
   const loadMyLists = async () => {
-    // Mock data for now
-    const mockRanked: Course[] = [
-      {
-        id: '1',
-        name: 'Pebble Beach Golf Links',
-        location: 'Pebble Beach, CA',
-        image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400&h=300&fit=crop',
-        rating: 9.2,
-        myRating: 10,
-        addedAt: '2024-01-15',
-        playedAt: '2024-01-10'
-      },
-      {
-        id: '2',
-        name: 'Augusta National Golf Club',
-        location: 'Augusta, GA',
-        image: 'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=400&h=300&fit=crop',
-        rating: 9.8,
-        myRating: 9,
-        addedAt: '2024-01-12',
-        playedAt: '2024-01-08'
-      },
-      {
-        id: '3',
-        name: 'St. Andrews Old Course',
-        location: 'St. Andrews, Scotland',
-        image: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop',
-        rating: 9.5,
-        myRating: 8,
-        addedAt: '2024-01-10',
-        playedAt: '2024-01-05'
-      }
-    ]
+    try {
+      setLoading(true)
 
-    const mockWantToTry: Course[] = [
-      {
-        id: '4',
-        name: 'Torrey Pines Golf Course',
-        location: 'La Jolla, CA',
-        image: 'https://images.unsplash.com/photo-1593111774240-d529f12cf4bb?w=400&h=300&fit=crop',
-        rating: 8.7,
-        addedAt: '2024-01-18',
-        friendsRating: 8.5
-      },
-      {
-        id: '5',
-        name: 'Whistling Straits',
-        location: 'Kohler, WI',
-        image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400&h=300&fit=crop',
-        rating: 9.1,
-        addedAt: '2024-01-16',
-        friendsRating: 9.2
-      }
-    ]
+      // Load all golf courses
+      const allCourses = await blink.db.golfCourses.list({
+        orderBy: { rating: 'desc' }
+      })
 
-    const mockRecommendations: Course[] = [
-      {
-        id: '6',
-        name: 'Bandon Dunes Golf Resort',
-        location: 'Bandon, OR',
-        image: 'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=400&h=300&fit=crop',
-        rating: 8.9,
-        addedAt: '2024-01-19',
-        friendsRating: 8.8
-      },
-      {
-        id: '7',
-        name: 'Kiawah Island Golf Resort',
-        location: 'Kiawah Island, SC',
-        image: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop',
-        rating: 8.6,
-        addedAt: '2024-01-17',
-        friendsRating: 8.4
-      }
-    ]
+      // Load user's course rankings
+      const userRankings = await blink.db.userCourseRankings.list({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' }
+      })
 
-    const mockTrending: Course[] = [
-      {
-        id: '8',
-        name: 'TPC Sawgrass',
-        location: 'Ponte Vedra Beach, FL',
-        image: 'https://images.unsplash.com/photo-1593111774240-d529f12cf4bb?w=400&h=300&fit=crop',
-        rating: 8.8,
-        addedAt: '2024-01-20',
-        trending: true,
-        friendsRating: 8.7
-      },
-      {
-        id: '9',
-        name: 'Bethpage Black',
-        location: 'Farmingdale, NY',
-        image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400&h=300&fit=crop',
-        rating: 8.5,
-        addedAt: '2024-01-19',
-        trending: true,
-        friendsRating: 8.3
-      }
-    ]
+      // Process courses into different categories
+      const rankedCoursesData: Course[] = []
+      const wantToTryData: Course[] = []
+      const recommendationsData: Course[] = []
+      const trendingData: Course[] = []
 
-    setTimeout(() => {
-      setRankedCourses(mockRanked)
-      setWantToTry(mockWantToTry)
-      setRecommendations(mockRecommendations)
-      setTrending(mockTrending)
+      // Map user rankings to courses
+      const userRankingMap = new Map()
+      userRankings.forEach(ranking => {
+        userRankingMap.set(ranking.courseId, ranking)
+      })
+
+      allCourses.forEach(course => {
+        const userRanking = userRankingMap.get(course.id)
+        
+        const courseData: Course = {
+          id: course.id,
+          name: course.name,
+          location: course.location,
+          image: course.imageUrl || course.image_url,
+          rating: course.rating,
+          addedAt: userRanking?.createdAt || course.createdAt,
+          playedAt: userRanking?.status === 'ranked' ? userRanking.updatedAt : undefined,
+          myRating: userRanking?.ranking,
+          friendsRating: course.rating,
+          trending: Math.random() > 0.7 // Simple trending logic
+        }
+
+        if (userRanking) {
+          if (userRanking.status === 'ranked') {
+            rankedCoursesData.push(courseData)
+          } else if (userRanking.status === 'want_to_try') {
+            wantToTryData.push(courseData)
+          }
+        } else {
+          // Courses not in user's list become recommendations or trending
+          if (courseData.trending) {
+            trendingData.push(courseData)
+          } else {
+            recommendationsData.push(courseData)
+          }
+        }
+      })
+
+      // Sort ranked courses by user ranking
+      rankedCoursesData.sort((a, b) => (a.myRating || 0) - (b.myRating || 0))
+
+      setRankedCourses(rankedCoursesData.slice(0, 10))
+      setWantToTry(wantToTryData.slice(0, 10))
+      setRecommendations(recommendationsData.slice(0, 10))
+      setTrending(trendingData.slice(0, 10))
+      
+    } catch (error) {
+      console.error('Error loading lists:', error)
+      // Fallback to empty arrays
+      setRankedCourses([])
+      setWantToTry([])
+      setRecommendations([])
+      setTrending([])
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
+  }
+
+  const addCourseToWantToTry = async (courseId: string) => {
+    try {
+      await blink.db.userCourseRankings.create({
+        id: `ranking_${Date.now()}`,
+        userId: user.id,
+        courseId: courseId,
+        status: 'want_to_try',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+      
+      // Reload lists to reflect changes
+      loadMyLists()
+    } catch (error) {
+      console.error('Error adding course:', error)
+    }
   }
 
   const CourseCard = ({ course, showRanking = false }: { course: Course; showRanking?: boolean }) => (
@@ -210,6 +210,27 @@ export default function MyList() {
     )
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-6 max-w-sm mx-auto p-4">
+          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+            <Heart className="w-10 h-10 text-primary" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Sign in to see your list</h2>
+            <p className="text-muted-foreground">
+              Create your personal golf course rankings and wishlist
+            </p>
+          </div>
+          <Button onClick={() => blink.auth.login()} className="w-full">
+            Sign In to Continue
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -248,9 +269,16 @@ export default function MyList() {
                 <h2 className="text-lg font-semibold">My Ranked Courses</h2>
                 <Badge variant="secondary">{rankedCourses.length} courses</Badge>
               </div>
-              {rankedCourses.map((course) => (
-                <CourseCard key={course.id} course={course} showRanking />
-              ))}
+              {rankedCourses.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No ranked courses yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">Start comparing courses to build your rankings</p>
+                </div>
+              ) : (
+                rankedCourses.map((course) => (
+                  <CourseCard key={course.id} course={course} showRanking />
+                ))
+              )}
             </div>
           </TabsContent>
 
@@ -260,9 +288,16 @@ export default function MyList() {
                 <h2 className="text-lg font-semibold">Want to Try</h2>
                 <Badge variant="secondary">{wantToTry.length} courses</Badge>
               </div>
-              {wantToTry.map((course) => (
-                <CourseCard key={course.id} course={course} />
-              ))}
+              {wantToTry.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No courses in your wishlist yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">Add courses you want to play</p>
+                </div>
+              ) : (
+                wantToTry.map((course) => (
+                  <CourseCard key={course.id} course={course} />
+                ))
+              )}
             </div>
           </TabsContent>
 
@@ -276,7 +311,17 @@ export default function MyList() {
                 Based on your rankings and friends' preferences
               </p>
               {recommendations.map((course) => (
-                <CourseCard key={course.id} course={course} />
+                <div key={course.id} className="relative">
+                  <CourseCard course={course} />
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="absolute top-2 right-2 z-10"
+                    onClick={() => addCourseToWantToTry(course.id)}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </Button>
+                </div>
               ))}
             </div>
           </TabsContent>
@@ -291,7 +336,17 @@ export default function MyList() {
                 Popular courses in the community right now
               </p>
               {trending.map((course) => (
-                <CourseCard key={course.id} course={course} />
+                <div key={course.id} className="relative">
+                  <CourseCard course={course} />
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="absolute top-2 right-2 z-10"
+                    onClick={() => addCourseToWantToTry(course.id)}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </Button>
+                </div>
               ))}
             </div>
           </TabsContent>

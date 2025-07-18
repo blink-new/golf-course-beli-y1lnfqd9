@@ -4,6 +4,7 @@ import { Card, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Progress } from './ui/progress'
+import { blink } from '../blink/client'
 
 interface Course {
   id: string
@@ -29,80 +30,76 @@ export default function Compare() {
 
   useEffect(() => {
     loadNextComparison()
+  }, [loadNextComparison])
+
+  const [allCourses, setAllCourses] = useState<Course[]>([])
+
+  useEffect(() => {
+    loadCourses()
   }, [])
 
-  const mockCourses: Course[] = [
-    {
-      id: '1',
-      name: 'Pebble Beach Golf Links',
-      location: 'Pebble Beach, CA',
-      image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400&h=300&fit=crop',
-      rating: 9.2,
-      friendsRating: 9.1,
-      description: 'Iconic oceanside course with breathtaking views and challenging holes.'
-    },
-    {
-      id: '2',
-      name: 'Augusta National Golf Club',
-      location: 'Augusta, GA',
-      image: 'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=400&h=300&fit=crop',
-      rating: 9.8,
-      friendsRating: 9.7,
-      description: 'Home of the Masters Tournament, featuring pristine conditions and azaleas.'
-    },
-    {
-      id: '3',
-      name: 'St. Andrews Old Course',
-      location: 'St. Andrews, Scotland',
-      image: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop',
-      rating: 9.5,
-      friendsRating: 9.3,
-      description: 'The home of golf with centuries of history and traditional links play.'
-    },
-    {
-      id: '4',
-      name: 'Torrey Pines Golf Course',
-      location: 'La Jolla, CA',
-      image: 'https://images.unsplash.com/photo-1593111774240-d529f12cf4bb?w=400&h=300&fit=crop',
-      rating: 8.7,
-      friendsRating: 8.5,
-      description: 'Dramatic cliffside course overlooking the Pacific Ocean.'
-    },
-    {
-      id: '5',
-      name: 'Whistling Straits',
-      location: 'Kohler, WI',
-      image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400&h=300&fit=crop',
-      rating: 9.1,
-      friendsRating: 8.9,
-      description: 'Links-style course along Lake Michigan with challenging winds.'
-    },
-    {
-      id: '6',
-      name: 'TPC Sawgrass',
-      location: 'Ponte Vedra Beach, FL',
-      image: 'https://images.unsplash.com/photo-1593111774240-d529f12cf4bb?w=400&h=300&fit=crop',
-      rating: 8.8,
-      friendsRating: 8.7,
-      description: 'Famous for the island green 17th hole and Players Championship.'
-    }
-  ]
+  const loadCourses = async () => {
+    try {
+      const courses = await blink.db.courses.list({
+        limit: 20,
+        orderBy: { communityRating: 'desc' }
+      })
 
-  const loadNextComparison = async () => {
+      const formattedCourses: Course[] = courses.map(course => ({
+        id: course.id,
+        name: course.name,
+        location: course.location,
+        image: course.imageUrl || 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400&h=300&fit=crop',
+        rating: Math.round(Number(course.communityRating) * 10) / 10,
+        friendsRating: Math.round((Number(course.communityRating) - 0.1) * 10) / 10,
+        description: course.description || 'Amazing golf course experience.'
+      }))
+
+      setAllCourses(formattedCourses)
+    } catch (error) {
+      console.error('Error loading courses:', error)
+      // Fallback to mock data
+      const fallbackCourses: Course[] = [
+        {
+          id: '1',
+          name: 'Pebble Beach Golf Links',
+          location: 'Pebble Beach, CA',
+          image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400&h=300&fit=crop',
+          rating: 9.2,
+          friendsRating: 9.1,
+          description: 'Iconic oceanside course with breathtaking views and challenging holes.'
+        },
+        {
+          id: '2',
+          name: 'Augusta National Golf Club',
+          location: 'Augusta, GA',
+          image: 'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=400&h=300&fit=crop',
+          rating: 9.8,
+          friendsRating: 9.7,
+          description: 'Home of the Masters Tournament, featuring pristine conditions and azaleas.'
+        }
+      ]
+      setAllCourses(fallbackCourses)
+    }
+  }
+
+  const loadNextComparison = useCallback(async () => {
+    if (allCourses.length < 2) return
+    
     setLoading(true)
     setSelectedCourse(null)
     
     // Simulate loading
     setTimeout(() => {
       // Randomly select two different courses
-      const shuffled = [...mockCourses].sort(() => 0.5 - Math.random())
+      const shuffled = [...allCourses].sort(() => 0.5 - Math.random())
       const course1 = shuffled[0]
       const course2 = shuffled[1]
       
       setCurrentComparison({ course1, course2 })
       setLoading(false)
     }, 500)
-  }
+  }, [allCourses])
 
   const handleCourseSelection = (courseId: string) => {
     setSelectedCourse(courseId)
