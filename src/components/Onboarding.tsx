@@ -15,8 +15,9 @@ interface Course {
   name: string
   location: string
   image_url: string
-  rating: number
-  difficulty: string
+  community_rating: number
+  difficulty_rating: number
+  description?: string
 }
 
 interface Contact {
@@ -122,7 +123,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       // Fetch courses from database based on location
       const courses = await blink.db.courses.list({
         limit: 6,
-        orderBy: { rating: 'desc' }
+        orderBy: { community_rating: 'desc' }
       })
       
       // Filter courses based on location (simplified logic)
@@ -144,24 +145,24 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
           name: 'Pebble Beach Golf Links',
           location: 'Pebble Beach, CA',
           image_url: 'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=400',
-          rating: 9.8,
-          difficulty: 'Championship'
+          community_rating: 9.8,
+          difficulty_rating: 9.8
         },
         {
           id: '2',
           name: 'Spyglass Hill Golf Course',
           location: 'Pebble Beach, CA',
           image_url: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?w=400',
-          rating: 9.2,
-          difficulty: 'Championship'
+          community_rating: 9.2,
+          difficulty_rating: 9.2
         },
         {
           id: '3',
           name: 'TPC Harding Park',
           location: 'San Francisco, CA',
           image_url: 'https://images.unsplash.com/photo-1593111774240-d529f12cf4bb?w=400',
-          rating: 8.7,
-          difficulty: 'Championship'
+          community_rating: 8.7,
+          difficulty_rating: 8.7
         }
       ])
     }
@@ -197,8 +198,8 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
           id: `ranking_${user.id}_${courseId}_${Date.now()}`,
           user_id: user.id,
           course_id: courseId,
-          rating: null, // Will be set when user actually ranks
-          want_to_try: true,
+          ranking: null, // Will be set when user actually ranks
+          status: 'want_to_try',
           created_at: new Date().toISOString()
         })
       }
@@ -387,10 +388,10 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
                           <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                          <span className="text-xs ml-1">{course.rating}</span>
+                          <span className="text-xs ml-1">{course.community_rating}</span>
                         </div>
                         <Badge variant="secondary" className="text-xs">
-                          {course.difficulty}
+                          {course.difficulty_rating >= 9 ? 'Championship' : course.difficulty_rating >= 7 ? 'Advanced' : 'Intermediate'}
                         </Badge>
                       </div>
                     </div>
